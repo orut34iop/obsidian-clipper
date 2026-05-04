@@ -1,3 +1,5 @@
+declare const __BUILD_DATE__: string;
+
 import { handleDragStart, handleDragOver, handleDrop, handleDragEnd } from '../utils/drag-and-drop';
 import { initializeIcons } from '../icons/icons';
 import { getCommands } from '../utils/hotkeys';
@@ -146,6 +148,11 @@ async function initializeVersionDisplay(): Promise<void> {
 
 	if (versionNumber) {
 		versionNumber.textContent = manifest.version;
+	}
+
+	const buildDate = document.getElementById('build-date');
+	if (buildDate && typeof __BUILD_DATE__ !== 'undefined') {
+		buildDate.textContent = `(${__BUILD_DATE__})`;
 	}
 
 	// Only add update listener for browsers that support it
