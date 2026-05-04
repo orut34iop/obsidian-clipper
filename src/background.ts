@@ -725,6 +725,24 @@ browser.runtime.onMessage.addListener((request: unknown, sender: browser.Runtime
 			}
 		}
 
+		if (typedRequest.action === 'obsidianRestApiSearch') {
+			const { url, apiKey } = typedRequest as unknown as { url: string; apiKey: string };
+			fetch(url, {
+				method: 'GET',
+				headers: { 'Authorization': apiKey ? `Bearer ${apiKey}` : '' }
+			})
+				.then(async (resp) => {
+					if (!resp.ok) {
+						sendResponse({ ok: false, error: `HTTP ${resp.status}` });
+						return;
+					}
+					const data = await resp.json();
+					sendResponse({ ok: true, data, results: data, raw: data });
+				})
+				.catch((err) => sendResponse({ ok: false, error: err.message }));
+			return true;
+		}
+
 		// For other actions that use sendResponse
 		if (typedRequest.action === "extractContent" ||
 			typedRequest.action === "ensureContentScriptLoaded" ||

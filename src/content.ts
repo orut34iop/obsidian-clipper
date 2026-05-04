@@ -12,6 +12,8 @@ import { saveFile } from './utils/file-utils';
 import { debugLog } from './utils/debug';
 import { updateSidebarWidth, addResizeHandle, cleanupResizeHandlers } from './utils/iframe-resize';
 import { parseForClip, preprocessParagraphs } from './utils/clip-utils';
+import { getMessage } from './utils/i18n';
+import { searchNotes } from './utils/selection-search';
 
 declare global {
 	interface Window {
@@ -20,7 +22,7 @@ declare global {
 }
 
 // IIFE to scope variables and allow safe re-execution
-(function() {
+(async function() {
 	// Bump the generation counter on every injection. Older listeners close
 	// over their own generation value and bail out when they see a newer one,
 	// so a zombie content script (runtime invalidated after extension update)
@@ -29,6 +31,11 @@ declare global {
 	const myGeneration = window.obsidianClipperGeneration;
 
 	debugLog('Clipper', 'Initializing content script, generation', myGeneration);
+	console.log('[Clipper] Content script initializing, generation:', myGeneration);
+
+	// Ensure settings are loaded before any feature checks
+	await loadSettings();
+	console.log('[Clipper] Settings loaded, selectionSearchEnabled:', generalSettings.selectionSearchEnabled);
 
 	let isHighlighterMode = false;
 	const iframeId = 'obsidian-clipper-iframe';
@@ -516,6 +523,260 @@ declare global {
 					console.error('[Content]','Error in toggle flow:', error);
 				}
 			});
+		}
+	});
+
+
+	// Reload settings when they change in another context (e.g. settings page)
+	browser.storage.onChanged.addListener((changes, area) => {
+		if (area === 'sync' && changes.selection_search_settings) {
+			loadSettings();
+		}
+	});
+
+	// --- Selection Search Floating Button ---
+
+	let selectionSearchButton: HTMLButtonElement | null = null;
+	let selectionSearchPopup: HTMLDivElement | null = null;
+	let currentSelectionText = '';
+
+	const IGNORED_SELECTION_SELECTOR =
+		'.obsidian-highlighter-menu, .obsidian-reader-settings, .obsidian-highlight-delete, .obsidian-selection-action, .obsidian-selection-search, #obsidian-clipper-container, .obsidian-selection-search-popup';
+
+	function ensureSelectionSearchButton(): HTMLButtonElement {
+		if (selectionSearchButton) return selectionSearchButton;
+
+		const btn = document.createElement('button');
+		btn.type = 'button';
+		btn.className = 'obsidian-selection-search';
+		btn.setAttribute('aria-label', getMessage('searchInObsidian'));
+		btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>${getMessage('searchInObsidian')}</span>`;
+		btn.style.display = 'none';
+		btn.style.position = 'absolute';
+		btn.style.zIndex = '999999999';
+
+		btn.addEventListener('mousedown', e => e.preventDefault());
+		btn.addEventListener('click', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			handleSelectionSearch();
+		});
+
+		document.body.appendChild(btn);
+		selectionSearchButton = btn;
+		return btn;
+	}
+
+	function showSelectionSearchButton(selection: Selection) {
+		if (!generalSettings.selectionSearchEnabled) return;
+
+		const range = selection.getRangeAt(0);
+		const container = range.commonAncestorContainer;
+		if (container.nodeType === Node.ELEMENT_NODE) {
+			if ((container as Element).closest(IGNORED_SELECTION_SELECTOR)) return;
+		} else if (container.parentElement?.closest(IGNORED_SELECTION_SELECTOR)) return;
+
+		const text = selection.toString().trim();
+		if (text.length < 10) return;
+
+		currentSelectionText = text;
+
+		const rects = range.getClientRects();
+		if (rects.length === 0) return;
+		const last = rects[rects.length - 1];
+
+		ensureHighlighterCSS();
+
+		const btn = ensureSelectionSearchButton();
+		btn.style.display = 'flex';
+
+		const btnWidth = btn.offsetWidth || 120;
+		const idealLeft = last.left + (last.width / 2) - (btnWidth / 2);
+		const clampedLeft = Math.max(4, Math.min(idealLeft, window.innerWidth - btnWidth - 4));
+
+		btn.style.left = `${clampedLeft + window.scrollX}px`;
+		btn.style.top = `${last.bottom + window.scrollY + 8}px`;
+	}
+
+	function hideSelectionSearchButton() {
+		if (selectionSearchButton && selectionSearchButton.style.display !== 'none') {
+			selectionSearchButton.style.display = 'none';
+		}
+		hideSearchResultsPopup();
+	}
+
+	async function handleSelectionSearch() {
+		if (!currentSelectionText) return;
+
+		const btn = ensureSelectionSearchButton();
+		btn.classList.add('is-searching');
+
+		showSearchResultsPopup([
+			{ title: getMessage('searching'), path: '', vault: '', similarity: 0, matchType: 'content' }
+		], btn, true);
+
+		try {
+			const results = await searchNotes(currentSelectionText, document.URL, document.title);
+			showSearchResultsPopup(results, btn);
+		} catch (err) {
+			console.error('[Clipper] Selection search failed:', err);
+			showSearchResultsPopup([], btn, false, String(err));
+		} finally {
+			btn.classList.remove('is-searching');
+		}
+	}
+
+	function ensureSearchResultsPopup(): HTMLDivElement {
+		if (selectionSearchPopup) return selectionSearchPopup;
+
+		const popup = document.createElement('div');
+		popup.className = 'obsidian-selection-search-popup';
+		popup.style.display = 'none';
+		document.body.appendChild(popup);
+		selectionSearchPopup = popup;
+		return popup;
+	}
+
+	function showSearchResultsPopup(
+		results: { title: string; path: string; vault: string; similarity: number; matchType: 'exact' | 'title' | 'content' | 'url'; snippet?: string }[],
+		anchorBtn: HTMLButtonElement,
+		isSearching = false,
+		errorMessage?: string
+	) {
+		const popup = ensureSearchResultsPopup();
+		popup.style.display = 'block';
+		popup.textContent = '';
+		popup.style.position = 'absolute';
+		popup.style.zIndex = '999999999';
+
+		if (isSearching) {
+			const header = document.createElement('div');
+			header.className = 'search-popup-header';
+			header.textContent = getMessage('searching');
+			popup.appendChild(header);
+
+			const desc = document.createElement('div');
+			desc.className = 'search-popup-no-results';
+			desc.textContent = getMessage('searchingDescription');
+			popup.appendChild(desc);
+
+			positionPopup(popup, anchorBtn);
+			return;
+		}
+
+		if (errorMessage) {
+			const header = document.createElement('div');
+			header.className = 'search-popup-header';
+			header.textContent = getMessage('searchError');
+			popup.appendChild(header);
+
+			const desc = document.createElement('div');
+			desc.className = 'search-popup-no-results';
+			desc.textContent = errorMessage;
+			popup.appendChild(desc);
+
+			positionPopup(popup, anchorBtn);
+			return;
+		}
+
+		const header = document.createElement('div');
+		header.className = 'search-popup-header';
+		header.textContent = results.length > 0
+			? getMessage('similarNotesFound', [String(results.length)])
+			: getMessage('noSimilarNotes');
+		popup.appendChild(header);
+
+		if (results.length === 0) {
+			const desc = document.createElement('div');
+			desc.className = 'search-popup-no-results';
+			desc.textContent = getMessage('noSimilarNotesDescription');
+			popup.appendChild(desc);
+		} else {
+			const list = document.createElement('div');
+			list.className = 'search-popup-list';
+			for (const r of results) {
+				const item = document.createElement('div');
+				item.className = 'search-popup-item';
+
+				const title = document.createElement('div');
+				title.className = 'search-popup-item-title';
+				title.textContent = r.title;
+				item.appendChild(title);
+
+				const meta = document.createElement('div');
+				meta.className = 'search-popup-item-meta';
+				meta.textContent = `${r.vault}${r.path ? ' / ' + r.path : ''}`;
+				item.appendChild(meta);
+
+				const badge = document.createElement('span');
+				badge.className = `search-popup-badge match-type-${r.matchType}`;
+				const matchTypeKey = `matchType${r.matchType.charAt(0).toUpperCase() + r.matchType.slice(1)}` as const;
+				badge.textContent = getMessage(matchTypeKey) || r.matchType;
+				item.appendChild(badge);
+
+				const similarity = document.createElement('span');
+				similarity.className = 'search-popup-similarity';
+				similarity.textContent = `${Math.round(r.similarity * 100)}%`;
+				item.appendChild(similarity);
+
+				if (r.snippet) {
+					const snippet = document.createElement('div');
+					snippet.className = 'search-popup-snippet';
+					snippet.textContent = r.snippet;
+					item.appendChild(snippet);
+				}
+
+				item.addEventListener('click', () => {
+					const fileParam = r.path ? `&file=${encodeURIComponent(r.path.replace(/\.md$/, ''))}` : '';
+					const url = `obsidian://open?vault=${encodeURIComponent(r.vault)}${fileParam}`;
+					window.open(url, '_blank');
+				});
+
+				list.appendChild(item);
+			}
+			popup.appendChild(list);
+		}
+
+		positionPopup(popup, anchorBtn);
+	}
+
+	function positionPopup(popup: HTMLDivElement, anchorBtn: HTMLButtonElement) {
+		const btnRect = anchorBtn.getBoundingClientRect();
+		const popupWidth = popup.offsetWidth || 320;
+		const idealLeft = btnRect.left + (btnRect.width / 2) - (popupWidth / 2);
+		const clampedLeft = Math.max(4, Math.min(idealLeft, window.innerWidth - popupWidth - 4));
+		popup.style.left = `${clampedLeft + window.scrollX}px`;
+		popup.style.top = `${btnRect.bottom + window.scrollY + 8}px`;
+	}
+
+	function hideSearchResultsPopup() {
+		if (selectionSearchPopup) {
+			selectionSearchPopup.style.display = 'none';
+		}
+	}
+
+	document.addEventListener('mouseup', (e) => {
+		setTimeout(() => {
+			if (myGeneration !== window.obsidianClipperGeneration) return;
+			const selection = window.getSelection();
+			const hasSelection = selection && !selection.isCollapsed && selection.toString().trim().length > 0;
+			if (hasSelection) {
+				showSelectionSearchButton(selection!);
+			} else {
+				const target = e.target as HTMLElement;
+				if (!target.closest('.obsidian-selection-search, .obsidian-selection-search-popup')) {
+					hideSelectionSearchButton();
+				}
+			}
+		}, 10);
+	}, true);
+
+	window.addEventListener('scroll', hideSelectionSearchButton, { passive: true });
+	window.addEventListener('resize', hideSelectionSearchButton);
+
+	document.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape') {
+			hideSelectionSearchButton();
 		}
 	});
 

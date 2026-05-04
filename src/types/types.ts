@@ -52,6 +52,26 @@ export interface Rating {
 
 export type SaveBehavior = 'addToObsidian' | 'saveFile' | 'copyToClipboard';
 
+export interface NoteIndexEntry {
+	id: string;
+	title: string;
+	path: string;
+	vault: string;
+	url?: string;
+	content: string;
+	contentHash: string;
+	createdAt: string;
+}
+
+export interface SearchResult {
+	title: string;
+	path: string;
+	vault: string;
+	similarity: number;
+	matchType: 'exact' | 'title' | 'content' | 'url';
+	snippet?: string;
+}
+
 export interface ReaderSettings {
 	fontSize: number;
 	lineHeight: number;
@@ -97,6 +117,11 @@ export interface Settings {
 	history: HistoryEntry[];
 	ratings: Rating[];
 	saveBehavior: 'addToObsidian' | 'saveFile' | 'copyToClipboard';
+	selectionSearchEnabled: boolean;
+	localRestApiUrl: string;
+	localRestApiKey: string;
+	searchSimilarityThreshold: number;
+	searchPaths: string;
 }
 
 export interface ModelConfig {

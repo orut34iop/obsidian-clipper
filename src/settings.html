@@ -248,6 +248,70 @@
 									</div>
 								</div>
 							</div>
+							<div class="setting-group">
+								<div class="setting-item setting-item-heading"><h3 data-i18n="selectionSearch">Selection search</h3></div>
+								<div class="setting-items">
+									<div class="setting-item mod-horizontal mod-toggle">
+										<div class="setting-item-info">
+											<label for="selection-search-toggle" data-i18n="selectionSearch">Selection search</label>
+											<div class="setting-item-description" data-i18n="selectionSearchDescription">Show a search button when you select text on a page to find similar notes.</div>
+										</div>
+										<div class="setting-item-control">
+											<div class="checkbox-container">
+												<input type="checkbox" id="selection-search-toggle" />
+											</div>
+										</div>
+									</div>
+									<div id="selection-search-config" style="opacity: 0.5; pointer-events: none;">
+										<div class="setting-item">
+											<div class="setting-item-info">
+												<label for="local-rest-api-url" data-i18n="localRestApiUrl">Local REST API URL (optional)</label>
+												<div class="setting-item-description" data-i18n="localRestApiUrlDescription">Install the Local REST API plugin in Obsidian to search your entire vault. Leave empty to search only notes saved via Web Clipper.</div>
+											</div>
+											<div class="setting-item-control">
+												<input type="url" id="local-rest-api-url" placeholder="http://localhost:27124" class="input" />
+											</div>
+										</div>
+										<div class="setting-item">
+											<div class="setting-item-info">
+												<label for="local-rest-api-key" data-i18n="localRestApiKey">API key (optional)</label>
+												<div class="setting-item-description" data-i18n="localRestApiKeyDescription">API key from the Local REST API plugin settings.</div>
+											</div>
+											<div class="setting-item-control">
+												<input type="password" id="local-rest-api-key" class="input" />
+											</div>
+										</div>
+										<div class="setting-item">
+											<div class="setting-item-info">
+												<label for="search-paths-input" data-i18n="searchPaths">Search paths</label>
+												<div class="setting-item-description" data-i18n="searchPathsDescription">Comma-separated folder paths to limit searches, e.g. reference/, notes/. Leave empty to search the entire vault.</div>
+											</div>
+											<div class="setting-item-control">
+												<input type="text" id="search-paths-input" placeholder="reference/" class="input" />
+											</div>
+										</div>
+										<div class="setting-item mod-horizontal">
+											<div class="setting-item-info">
+												<label for="similarity-threshold" data-i18n="similarityThreshold">Similarity threshold</label>
+												<div class="setting-item-description" data-i18n="similarityThresholdDescription">Minimum similarity (50-100). Higher = fewer, more precise matches.</div>
+											</div>
+											<div class="setting-item-control">
+												<input type="range" id="similarity-threshold" min="50" max="100" value="80" />
+												<span id="similarity-threshold-display" class="slider-value">80%</span>
+											</div>
+										</div>
+										<div class="setting-item mod-horizontal">
+											<div class="setting-item-info">
+												<label for="clear-note-index-btn" data-i18n="clearNoteIndex">Clear local note index</label>
+												<div class="setting-item-description" data-i18n="clearNoteIndexDescription">Remove all locally saved note records used for duplicate detection.</div>
+											</div>
+											<div class="setting-item-control">
+												<button type="button" id="clear-note-index-btn" class="mod-warning" data-i18n="clear">Clear</button>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
 						</form>
 					</div>
 

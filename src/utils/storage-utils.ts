@@ -47,7 +47,12 @@ export let generalSettings: Settings = {
 	},
 	history: [],
 	ratings: [],
-	saveBehavior: 'addToObsidian'
+	saveBehavior: 'addToObsidian',
+	selectionSearchEnabled: false,
+	localRestApiUrl: '',
+	localRestApiKey: '',
+	searchSimilarityThreshold: 0.8,
+	searchPaths: '',
 };
 
 export function setLocalStorage(key: string, value: any): Promise<void> {
@@ -107,6 +112,13 @@ interface StorageData {
 	};
 	history?: HistoryEntry[];
 	ratings?: Rating[];
+	selection_search_settings?: {
+		selectionSearchEnabled?: boolean;
+		localRestApiUrl?: string;
+		localRestApiKey?: string;
+		searchSimilarityThreshold?: number;
+		searchPaths?: string;
+	};
 	migrationVersion?: number;
 }
 
@@ -159,6 +171,11 @@ export async function loadSettings(): Promise<Settings> {
 		},
 		history: [],
 		ratings: [],
+		selectionSearchEnabled: false,
+		localRestApiUrl: '',
+		localRestApiKey: '',
+		searchSimilarityThreshold: 0.8,
+		searchPaths: '',
 	};
 
 	// Update migration version if needed
@@ -216,7 +233,12 @@ export async function loadSettings(): Promise<Settings> {
 		stats: data.stats || defaultSettings.stats,
 		history: data.history || defaultSettings.history,
 		ratings: data.ratings || defaultSettings.ratings,
-		saveBehavior: data.general_settings?.saveBehavior ?? defaultSettings.saveBehavior
+		saveBehavior: data.general_settings?.saveBehavior ?? defaultSettings.saveBehavior,
+		selectionSearchEnabled: data.selection_search_settings?.selectionSearchEnabled ?? defaultSettings.selectionSearchEnabled,
+		localRestApiUrl: data.selection_search_settings?.localRestApiUrl ?? defaultSettings.localRestApiUrl,
+		localRestApiKey: data.selection_search_settings?.localRestApiKey ?? defaultSettings.localRestApiKey,
+		searchSimilarityThreshold: data.selection_search_settings?.searchSimilarityThreshold ?? defaultSettings.searchSimilarityThreshold,
+		searchPaths: data.selection_search_settings?.searchPaths ?? defaultSettings.searchPaths,
 	};
 
 	generalSettings = loadedSettings;
@@ -270,7 +292,14 @@ export async function saveSettings(settings?: Partial<Settings>): Promise<void> 
 			highlightActiveLine: generalSettings.readerSettings.highlightActiveLine,
 			customCss: generalSettings.readerSettings.customCss
 		},
-		stats: generalSettings.stats
+		stats: generalSettings.stats,
+		selection_search_settings: {
+			selectionSearchEnabled: generalSettings.selectionSearchEnabled,
+			localRestApiUrl: generalSettings.localRestApiUrl,
+			localRestApiKey: generalSettings.localRestApiKey,
+			searchSimilarityThreshold: generalSettings.searchSimilarityThreshold,
+			searchPaths: generalSettings.searchPaths,
+		}
 	});
 }
 

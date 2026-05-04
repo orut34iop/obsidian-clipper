@@ -12,6 +12,7 @@ import { updateTemplateList, showTemplateEditor } from '../managers/template-ui'
 import { exportAllSettings, importAllSettings } from '../utils/import-export';
 import { Settings, Template } from '../types/types';
 import { exportHighlights } from './highlights-manager';
+import { clearNoteIndex } from '../utils/note-index';
 import { getMessage, setupLanguageAndDirection } from '../utils/i18n';
 import { debounce } from '../utils/debounce';
 import browser from '../utils/browser-polyfill';
@@ -234,6 +235,7 @@ export function initializeGeneralSettings(): void {
 		initializeHighlighterSettings();
 		initializeExportHighlightsButton();
 		initializeSaveBehaviorDropdown();
+		initializeSelectionSearchSettings();
 		await initializeUsageChart();
 
 		// Initialize feedback modal close button
@@ -263,6 +265,11 @@ function saveSettingsFromForm(): void {
 	const highlighterToggle = document.getElementById('highlighter-toggle') as HTMLInputElement;
 	const alwaysShowHighlightsToggle = document.getElementById('highlighter-visibility') as HTMLInputElement;
 	const highlightBehaviorSelect = document.getElementById('highlighter-behavior') as HTMLSelectElement;
+	const selectionSearchToggle = document.getElementById('selection-search-toggle') as HTMLInputElement;
+	const localRestApiUrl = document.getElementById('local-rest-api-url') as HTMLInputElement;
+	const localRestApiKey = document.getElementById('local-rest-api-key') as HTMLInputElement;
+	const similarityThreshold = document.getElementById('similarity-threshold') as HTMLInputElement;
+	const searchPathsInput = document.getElementById('search-paths-input') as HTMLInputElement;
 
 	const updatedSettings = {
 		...generalSettings, // Keep existing settings
@@ -273,7 +280,12 @@ function saveSettingsFromForm(): void {
 		silentOpen: silentOpenToggle?.checked ?? generalSettings.silentOpen,
 		highlighterEnabled: highlighterToggle?.checked ?? generalSettings.highlighterEnabled,
 		alwaysShowHighlights: alwaysShowHighlightsToggle?.checked ?? generalSettings.alwaysShowHighlights,
-		highlightBehavior: highlightBehaviorSelect?.value ?? generalSettings.highlightBehavior
+		highlightBehavior: highlightBehaviorSelect?.value ?? generalSettings.highlightBehavior,
+		selectionSearchEnabled: selectionSearchToggle?.checked ?? generalSettings.selectionSearchEnabled,
+		localRestApiUrl: localRestApiUrl?.value ?? generalSettings.localRestApiUrl,
+		localRestApiKey: localRestApiKey?.value ?? generalSettings.localRestApiKey,
+		searchSimilarityThreshold: similarityThreshold ? parseInt(similarityThreshold.value) / 100 : generalSettings.searchSimilarityThreshold,
+		searchPaths: searchPathsInput?.value ?? generalSettings.searchPaths,
 	};
 
 	saveSettings(updatedSettings);
@@ -505,6 +517,77 @@ async function handleRating(rating: number) {
 		// Show feedback modal for ratings < 4
 		const modal = document.getElementById('feedback-modal');
 		showModal(modal);
+	}
+}
+
+function initializeSelectionSearchSettings(): void {
+	const toggle = document.getElementById('selection-search-toggle') as HTMLInputElement;
+	const config = document.getElementById('selection-search-config') as HTMLDivElement;
+	const urlInput = document.getElementById('local-rest-api-url') as HTMLInputElement;
+	const keyInput = document.getElementById('local-rest-api-key') as HTMLInputElement;
+	const thresholdInput = document.getElementById('similarity-threshold') as HTMLInputElement;
+	const thresholdDisplay = document.getElementById('similarity-threshold-display') as HTMLSpanElement;
+	const searchPathsInput = document.getElementById('search-paths-input') as HTMLInputElement;
+	const clearBtn = document.getElementById('clear-note-index-btn') as HTMLButtonElement;
+
+	if (toggle) {
+		toggle.checked = generalSettings.selectionSearchEnabled;
+		toggle.addEventListener('change', () => {
+			const checked = toggle.checked;
+			if (config) {
+				config.style.opacity = checked ? '1' : '0.5';
+				config.style.pointerEvents = checked ? 'auto' : 'none';
+			}
+			saveSettings({ ...generalSettings, selectionSearchEnabled: checked });
+		});
+	}
+
+	if (config) {
+		config.style.opacity = generalSettings.selectionSearchEnabled ? '1' : '0.5';
+		config.style.pointerEvents = generalSettings.selectionSearchEnabled ? 'auto' : 'none';
+	}
+
+	if (urlInput) {
+		urlInput.value = generalSettings.localRestApiUrl || '';
+		urlInput.addEventListener('input', debounce(() => {
+			saveSettings({ ...generalSettings, localRestApiUrl: urlInput.value.trim() });
+		}, 500));
+	}
+
+	if (keyInput) {
+		keyInput.value = generalSettings.localRestApiKey || '';
+		keyInput.addEventListener('input', debounce(() => {
+			saveSettings({ ...generalSettings, localRestApiKey: keyInput.value.trim() });
+		}, 500));
+	}
+
+	if (searchPathsInput) {
+		searchPathsInput.value = generalSettings.searchPaths || '';
+		searchPathsInput.addEventListener('input', debounce(() => {
+			saveSettings({ ...generalSettings, searchPaths: searchPathsInput.value.trim() });
+		}, 500));
+	}
+
+	if (thresholdInput && thresholdDisplay) {
+		const pct = Math.round((generalSettings.searchSimilarityThreshold || 0.8) * 100);
+		thresholdInput.value = String(pct);
+		thresholdDisplay.textContent = `${pct}%`;
+		thresholdInput.addEventListener('input', () => {
+			const val = parseInt(thresholdInput.value);
+			thresholdDisplay.textContent = `${val}%`;
+		});
+		thresholdInput.addEventListener('change', () => {
+			const val = parseInt(thresholdInput.value) / 100;
+			saveSettings({ ...generalSettings, searchSimilarityThreshold: val });
+		});
+	}
+
+	if (clearBtn) {
+		clearBtn.addEventListener('click', async () => {
+			if (confirm(getMessage('clearNoteIndex'))) {
+				await clearNoteIndex();
+			}
+		});
 	}
 }
 

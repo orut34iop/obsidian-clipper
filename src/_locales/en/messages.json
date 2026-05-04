@@ -1065,5 +1065,68 @@
 	},
 	"version": {
 		"message": "Version"
+	},
+	"selectionSearch": {
+		"message": "Selection search"
+	},
+	"selectionSearchDescription": {
+		"message": "Show a search button when you select text on a page to find similar notes."
+	},
+	"localRestApiUrl": {
+		"message": "Local REST API URL (optional)"
+	},
+	"localRestApiUrlDescription": {
+		"message": "Install the Local REST API plugin in Obsidian to search your entire vault. Leave empty to search only notes saved via Web Clipper."
+	},
+	"localRestApiKey": {
+		"message": "API key (optional)"
+	},
+	"localRestApiKeyDescription": {
+		"message": "API key from the Local REST API plugin settings."
+	},
+	"searchPaths": {
+		"message": "Search paths"
+	},
+	"searchPathsDescription": {
+		"message": "Comma-separated folder paths to limit searches, e.g. reference/, notes/. Leave empty to search the entire vault."
+	},
+	"similarityThreshold": {
+		"message": "Similarity threshold"
+	},
+	"similarityThresholdDescription": {
+		"message": "Minimum similarity (50-100). Higher = fewer, more precise matches."
+	},
+	"clearNoteIndex": {
+		"message": "Clear local note index"
+	},
+	"clearNoteIndexDescription": {
+		"message": "Remove all locally saved note records used for duplicate detection."
+	},
+	"clear": {
+		"message": "Clear"
+	},
+	"searchInObsidian": {
+		"message": "Search in Obsidian"
+	},
+	"similarNotesFound": {
+		"message": "$1 similar note(s) found"
+	},
+	"noSimilarNotes": {
+		"message": "No similar notes found"
+	},
+	"noSimilarNotesDescription": {
+		"message": "No matching notes were found in your Obsidian vault or local index."
+	},
+	"matchTypeExact": {
+		"message": "Exact"
+	},
+	"matchTypeUrl": {
+		"message": "URL"
+	},
+	"matchTypeTitle": {
+		"message": "Title"
+	},
+	"matchTypeContent": {
+		"message": "Content"
 	}
 }

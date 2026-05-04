@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { Template, Property, PromptVariable } from '../types/types';
 import { incrementStat, addHistoryEntry, getClipHistory } from '../utils/storage-utils';
 import { generateFrontmatter, saveToObsidian } from '../utils/obsidian-note-creator';
+import { addToNoteIndex } from '../utils/note-index';
 import { extractPageContent, initializePageContent } from '../utils/content-extractor';
 import { compileTemplate } from '../utils/template-compiler';
 import { initializeIcons, getPropertyTypeIcon } from '../icons/icons';
@@ -27,6 +28,14 @@ import { formatPropertyValue } from '../utils/shared';
 interface ReaderModeResponse {
 	success: boolean;
 	isActive: boolean;
+}
+
+async function sha256(text: string): Promise<string> {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(text);
+	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 let loadedSettings: Settings;
@@ -1349,6 +1358,21 @@ async function handleClipObsidian(): Promise<void> {
 		await saveToObsidian(fileContent, noteName, path, selectedVault, currentTemplate.behavior);
 		const tabInfo = await getCurrentTabInfo();
 		await incrementStat('addToObsidian', selectedVault, path, tabInfo.url, tabInfo.title);
+
+		// Add to local note index for duplicate detection
+		try {
+			const fullPath = path ? (path.endsWith('/') ? path + noteName : path + '/' + noteName) : noteName;
+			await addToNoteIndex({
+				title: noteName || tabInfo.title || 'Untitled',
+				path: fullPath + '.md',
+				vault: selectedVault,
+				url: tabInfo.url,
+				content: fileContent.slice(0, 2000),
+				contentHash: await sha256(fileContent)
+			});
+		} catch (indexError) {
+			console.error('Failed to add to note index:', indexError);
+		}
 
 		lastSelectedVault = selectedVault;
 		await setLocalStorage('lastSelectedVault', lastSelectedVault);

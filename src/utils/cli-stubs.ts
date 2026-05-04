@@ -49,6 +49,11 @@ export const generalSettings: Settings = {
 	history: [],
 	ratings: [],
 	saveBehavior: 'addToObsidian',
+	selectionSearchEnabled: false,
+	localRestApiUrl: '',
+	localRestApiKey: '',
+	searchSimilarityThreshold: 0.8,
+	searchPaths: '',
 };
 
 export const loadSettings = async () => {};
