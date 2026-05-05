@@ -1,4 +1,5 @@
 declare const __BUILD_DATE__: string;
+declare const __BUILD_VERSION__: string;
 
 import { handleDragStart, handleDragOver, handleDrop, handleDragEnd } from '../utils/drag-and-drop';
 import { initializeIcons } from '../icons/icons';

@@ -36,6 +36,9 @@ module.exports = (env, argv) => {
 	const outputDir = getOutputDir();
 	const browserName = isFirefox ? 'firefox' : (isSafari ? 'safari' : 'chrome');
 
+	const now = new Date();
+	const buildDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
 	const mainConfig = {
 		mode: argv.mode,
 		entry: {
@@ -167,11 +170,12 @@ module.exports = (env, argv) => {
 					});
 				}
 			},
-			new webpack.DefinePlugin({
-				'process.env.NODE_ENV': JSON.stringify(argv.mode),
-				'DEBUG_MODE': JSON.stringify(!isProduction),
-					'__BUILD_DATE__': JSON.stringify(new Date().toISOString().slice(0, 10))
-			}),
+				new webpack.DefinePlugin({
+					'process.env.NODE_ENV': JSON.stringify(argv.mode),
+					'DEBUG_MODE': JSON.stringify(!isProduction),
+					'__BUILD_DATE__': JSON.stringify(buildDate),
+					'__BUILD_VERSION__': JSON.stringify(package.version)
+				}),
 			...(isProduction ? [
 				new ZipPlugin({
 					path: path.resolve(__dirname, 'builds'),
