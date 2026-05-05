@@ -182,12 +182,13 @@ export async function searchNotes(
 	console.log('[SelectionSearch] REST API results:', apiResults.length, 'error:', apiError || '(none)');
 	let allResults: SearchResult[] = [];
 	if (apiResults.length > 0) {
-		const filtered = apiResults.filter(r => r.similarity >= threshold);
-		console.log('[SelectionSearch] REST API filtered results:', filtered.length);
-		allResults = allResults.concat(filtered);
+		// Log each result's similarity for diagnostics
+		apiResults.forEach((r, i) => console.log(`[SelectionSearch] API result ${i}: title="${r.title}" similarity=${r.similarity} matchType=${r.matchType}`));
+		// Don't filter REST API results by local threshold — the API already ranked them.
+		// Just take top 10 to avoid overwhelming the UI.
+		allResults = allResults.concat(apiResults.slice(0, 10));
 	}
-	// If REST API returned an error or all results were filtered out,
-	// we still search the internal index for redundancy.
+	// Always search internal index too for notes saved via the extension.
 
 	// Search internal index
 	const index = await getNoteIndex();
