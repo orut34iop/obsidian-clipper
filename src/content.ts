@@ -577,7 +577,7 @@ declare global {
 		} else if (container.parentElement?.closest(IGNORED_SELECTION_SELECTOR)) return;
 
 		const text = selection.toString().trim();
-		if (text.length < 10) return;
+		if (text.length < 4) return;
 
 		currentSelectionText = text;
 
