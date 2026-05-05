@@ -35,6 +35,14 @@ async function callRestApiSearch(
 	return response;
 }
 
+function normalizeApiScore(score: number): number {
+	if (typeof score !== 'number' || isNaN(score)) return 0.85;
+	if (score >= 0 && score <= 1) return score;
+	if (score > 1 && score <= 100) return score / 100;
+	// Negative or very large raw scores (e.g. BM25) — treat as high relevance
+	return 0.85;
+}
+
 function mapRestApiResults(raw: any[]): SearchResult[] {
 	if (!Array.isArray(raw)) {
 		console.warn('[SelectionSearch] REST API response is not an array:', raw);
@@ -44,7 +52,7 @@ function mapRestApiResults(raw: any[]): SearchResult[] {
 		title: ((r.filename || r.file || r.title || 'Unknown') as string).replace(/\.md$/, ''),
 		path: (r.path || r.file || r.filename || '') as string,
 		vault: (r.vault || '') as string,
-		similarity: (typeof r.score === 'number' ? r.score : typeof r.relevance === 'number' ? r.relevance : 0.85),
+		similarity: normalizeApiScore(typeof r.score === 'number' ? r.score : typeof r.relevance === 'number' ? r.relevance : 0.85),
 		matchType: 'content' as const,
 		snippet: ((r.result || r.content || r.snippet || '') as string).substring(0, 300),
 	}));
@@ -69,40 +77,28 @@ async function searchViaLocalRestApi(
 		return { results: [] };
 	}
 
-	const pathConstraint = buildPathQueryConstraint();
+	// The /search/simple/ endpoint uses plain text fuzzy search (Obsidian's built-in search).
+	// It does NOT support Obsidian search syntax like "path:", so we only use plain queries.
+	// Try progressively shorter queries to maximize chance of match.
+	const queries = [query];
+	if (query.length > 15) queries.push(query.slice(0, 15));
+	if (query.length > 8) queries.push(query.slice(0, 8));
 
-	// Try progressively shorter queries to maximize chance of match
-	const baseQueries = [query];
-	if (query.length > 10) baseQueries.push(query.slice(0, 10));
-	if (query.length > 5) baseQueries.push(query.slice(0, 5));
+	console.log('[SelectionSearch] REST API queries:', queries);
 
-	const queries = baseQueries.map(q => pathConstraint + q);
-	// Also try without path constraints in case path: syntax is unsupported
-	const noPathQueries = [query];
-	if (query.length > 10) noPathQueries.push(query.slice(0, 10));
-	if (query.length > 5) noPathQueries.push(query.slice(0, 5));
-
-	const allQueries = [...queries, ...noPathQueries];
-	console.log('[SelectionSearch] REST API queries:', allQueries);
-
-	// Try multiple endpoint variations for compatibility across plugin versions
-	const endpoints = [
-		'/search/?query=',
-		'/search?query=',
-		'/search/simple/?query=',
-		'/search/simple?query=',
-	];
+	// Only /search/simple/ works with POST + query param.
+	// /search/ (DQL/JsonLogic) requires a request body and returns 400 with query params.
+	const endpoints = ['/search/simple/?query=', '/search/simple?query='];
 
 	let lastError = '';
 	for (const endpoint of endpoints) {
-		for (const q of allQueries) {
+		for (const q of queries) {
 			const response = await callRestApiSearch(endpoint, q, localRestApiKey);
 			if (!response.ok) {
 				lastError = response.error || '';
 				console.error(`[SelectionSearch] ${endpoint} failed for "${q}":`, response.error);
 				continue;
 			}
-			// Handle both array responses and { results: [...] } wrapped responses
 			const rawResults = Array.isArray(response.data)
 				? response.data
 				: Array.isArray(response.data?.results)
