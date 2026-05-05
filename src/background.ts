@@ -727,9 +727,13 @@ browser.runtime.onMessage.addListener((request: unknown, sender: browser.Runtime
 
 		if (typedRequest.action === 'obsidianRestApiSearch') {
 			const { url, apiKey } = typedRequest as unknown as { url: string; apiKey: string };
+			const headers: Record<string, string> = {};
+			if (apiKey) {
+				headers['Authorization'] = `Bearer ${apiKey}`;
+			}
 			fetch(url, {
 				method: 'GET',
-				headers: { 'Authorization': apiKey ? `Bearer ${apiKey}` : '' }
+				headers
 			})
 				.then(async (resp) => {
 					if (!resp.ok) {

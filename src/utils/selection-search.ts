@@ -77,15 +77,28 @@ async function searchViaLocalRestApi(
 	if (query.length > 5) baseQueries.push(query.slice(0, 5));
 
 	const queries = baseQueries.map(q => pathConstraint + q);
-	console.log('[SelectionSearch] REST API queries:', queries);
+	// Also try without path constraints in case path: syntax is unsupported
+	const noPathQueries = [query];
+	if (query.length > 10) noPathQueries.push(query.slice(0, 10));
+	if (query.length > 5) noPathQueries.push(query.slice(0, 5));
 
-	// Try /search/ endpoint (trailing slash and without, for compatibility)
-	const endpoints = ['/search/?query=', '/search?query='];
+	const allQueries = [...queries, ...noPathQueries];
+	console.log('[SelectionSearch] REST API queries:', allQueries);
 
+	// Try multiple endpoint variations for compatibility across plugin versions
+	const endpoints = [
+		'/search/?query=',
+		'/search?query=',
+		'/search/simple/?query=',
+		'/search/simple?query=',
+	];
+
+	let lastError = '';
 	for (const endpoint of endpoints) {
-		for (const q of queries) {
+		for (const q of allQueries) {
 			const response = await callRestApiSearch(endpoint, q, localRestApiKey);
 			if (!response.ok) {
+				lastError = response.error || '';
 				console.error(`[SelectionSearch] ${endpoint} failed for "${q}":`, response.error);
 				continue;
 			}
@@ -111,7 +124,7 @@ async function searchViaLocalRestApi(
 		}
 	}
 
-	return { results: [], error: 'REST API search returned no results for any query variation' };
+	return { results: [], error: lastError || 'REST API search returned no results for any query variation' };
 }
 
 // --- Similarity Algorithm ---
