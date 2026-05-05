@@ -732,7 +732,7 @@ browser.runtime.onMessage.addListener((request: unknown, sender: browser.Runtime
 				headers['Authorization'] = `Bearer ${apiKey}`;
 			}
 			fetch(url, {
-				method: 'GET',
+				method: 'POST',
 				headers
 			})
 				.then(async (resp) => {
