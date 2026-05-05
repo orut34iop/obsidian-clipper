@@ -167,16 +167,18 @@ export async function searchNotes(
 	// Try REST API first
 	const { results: apiResults, error: apiError } = await searchViaLocalRestApi(queryText);
 	console.log('[SelectionSearch] REST API results:', apiResults.length, 'error:', apiError || '(none)');
+	let allResults: SearchResult[] = [];
 	if (apiResults.length > 0) {
-		return apiResults.filter(r => r.similarity >= threshold);
+		const filtered = apiResults.filter(r => r.similarity >= threshold);
+		console.log('[SelectionSearch] REST API filtered results:', filtered.length);
+		allResults = allResults.concat(filtered);
 	}
-	// If REST API returned an error, we still fall through to internal index
-	// but log the error for diagnostics
+	// If REST API returned an error or all results were filtered out,
+	// we still search the internal index for redundancy.
 
-	// Fallback to internal index
+	// Search internal index
 	const index = await getNoteIndex();
 	console.log('[SelectionSearch] internal index size:', index.length);
-	const results: { entry: NoteIndexEntry; similarity: number; matchType: SearchResult['matchType'] }[] = [];
 	const queryGrams = generateNGrams(queryText, 3);
 
 	for (const entry of index) {
@@ -210,22 +212,31 @@ export async function searchNotes(
 		}
 
 		if (similarity >= threshold) {
-			results.push({ entry, similarity, matchType });
+			allResults.push({
+				title: entry.title,
+				path: entry.path,
+				vault: entry.vault,
+				similarity,
+				matchType,
+				snippet: entry.content.substring(0, 200),
+			});
 		}
 	}
 
+	// Deduplicate by vault+path
+	const seen = new Set<string>();
+	const deduped = allResults.filter(r => {
+		const key = `${r.vault}::${r.path}`;
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+
 	// Sort by similarity descending
-	results.sort((a, b) => b.similarity - a.similarity);
+	deduped.sort((a, b) => b.similarity - a.similarity);
 
 	// Return top 10
-	const finalResults = results.slice(0, 10).map(r => ({
-		title: r.entry.title,
-		path: r.entry.path,
-		vault: r.entry.vault,
-		similarity: r.similarity,
-		matchType: r.matchType,
-		snippet: r.entry.content.substring(0, 200),
-	}));
+	const finalResults = deduped.slice(0, 10);
 	console.log('[SelectionSearch] final results:', finalResults.length);
 	return finalResults;
 }
