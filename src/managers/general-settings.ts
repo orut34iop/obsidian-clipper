@@ -531,15 +531,27 @@ function initializeSelectionSearchSettings(): void {
 	const searchPathsInput = document.getElementById('search-paths-input') as HTMLInputElement;
 	const clearBtn = document.getElementById('clear-note-index-btn') as HTMLButtonElement;
 
+	const trySave = async (updates: Partial<Settings>) => {
+		try {
+			await saveSettings({ ...generalSettings, ...updates });
+		} catch (err) {
+			console.error('[Settings] Failed to save selection search settings:', err, updates);
+		}
+	};
+
 	if (toggle) {
 		toggle.checked = generalSettings.selectionSearchEnabled;
-		toggle.addEventListener('change', () => {
+		// initializeToggles ran before this, so sync the visual state now
+		const tContainer = toggle.closest('.checkbox-container');
+		if (tContainer) updateToggleState(tContainer as HTMLElement, toggle);
+
+		toggle.addEventListener('change', async () => {
 			const checked = toggle.checked;
 			if (config) {
 				config.style.opacity = checked ? '1' : '0.5';
 				config.style.pointerEvents = checked ? 'auto' : 'none';
 			}
-			saveSettings({ ...generalSettings, selectionSearchEnabled: checked });
+			await trySave({ selectionSearchEnabled: checked });
 		});
 	}
 
@@ -550,23 +562,26 @@ function initializeSelectionSearchSettings(): void {
 
 	if (urlInput) {
 		urlInput.value = generalSettings.localRestApiUrl || '';
-		urlInput.addEventListener('input', debounce(() => {
-			saveSettings({ ...generalSettings, localRestApiUrl: urlInput.value.trim() });
-		}, 500));
+		const save = () => trySave({ localRestApiUrl: urlInput.value.trim() });
+		urlInput.addEventListener('input', debounce(save, 500));
+		urlInput.addEventListener('blur', save);
+		urlInput.addEventListener('change', save);
 	}
 
 	if (keyInput) {
 		keyInput.value = generalSettings.localRestApiKey || '';
-		keyInput.addEventListener('input', debounce(() => {
-			saveSettings({ ...generalSettings, localRestApiKey: keyInput.value.trim() });
-		}, 500));
+		const save = () => trySave({ localRestApiKey: keyInput.value.trim() });
+		keyInput.addEventListener('input', debounce(save, 500));
+		keyInput.addEventListener('blur', save);
+		keyInput.addEventListener('change', save);
 	}
 
 	if (searchPathsInput) {
 		searchPathsInput.value = generalSettings.searchPaths || '';
-		searchPathsInput.addEventListener('input', debounce(() => {
-			saveSettings({ ...generalSettings, searchPaths: searchPathsInput.value.trim() });
-		}, 500));
+		const save = () => trySave({ searchPaths: searchPathsInput.value.trim() });
+		searchPathsInput.addEventListener('input', debounce(save, 500));
+		searchPathsInput.addEventListener('blur', save);
+		searchPathsInput.addEventListener('change', save);
 	}
 
 	if (thresholdInput && thresholdDisplay) {
@@ -577,9 +592,9 @@ function initializeSelectionSearchSettings(): void {
 			const val = parseInt(thresholdInput.value);
 			thresholdDisplay.textContent = `${val}%`;
 		});
-		thresholdInput.addEventListener('change', () => {
+		thresholdInput.addEventListener('change', async () => {
 			const val = parseInt(thresholdInput.value) / 100;
-			saveSettings({ ...generalSettings, searchSimilarityThreshold: val });
+			await trySave({ searchSimilarityThreshold: val });
 		});
 	}
 
