@@ -360,6 +360,23 @@ browser.runtime.onMessage.addListener((request: unknown, sender: browser.Runtime
 			return true;
 		}
 
+		if (typedRequest.action === 'quickClipFromIcon') {
+			browser.tabs.query({ active: true, currentWindow: true }).then(async (tabs) => {
+				const tab = tabs[0];
+				if (tab?.id) {
+					openPopup();
+					setTimeout(() => {
+						browser.runtime.sendMessage({ action: "triggerQuickClip" })
+							.catch(error => console.error("Failed to send quick clip message:", error));
+					}, 500);
+					sendResponse({ success: true });
+				} else {
+					sendResponse({ success: false, error: 'No active tab found' });
+				}
+			});
+			return true;
+		}
+
 		// fetchProxy is handled by a separate listener below
 
 		if (typedRequest.action === "extractContent" && sender.tab && sender.tab.id) {
