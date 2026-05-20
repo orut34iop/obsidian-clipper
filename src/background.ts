@@ -368,7 +368,7 @@ browser.runtime.onMessage.addListener((request: unknown, sender: browser.Runtime
 					setTimeout(() => {
 						browser.runtime.sendMessage({ action: "triggerQuickClip" })
 							.catch(error => console.error("Failed to send quick clip message:", error));
-					}, 500);
+					}, 800);
 					sendResponse({ success: true });
 				} else {
 					sendResponse({ success: false, error: 'No active tab found' });

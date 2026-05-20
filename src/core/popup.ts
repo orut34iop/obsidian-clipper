@@ -45,6 +45,14 @@ let currentVariables: { [key: string]: string } = {};
 let currentTabId: number | undefined;
 let lastSelectedVault: string | null = null;
 
+// Deferred promise that resolves when the popup has finished its initial
+// content load (refreshFields). triggerQuickClip waits on this so it never
+// clips with empty fields.
+let popupReadyResolve: (() => void) | null = null;
+const popupReadyPromise = new Promise<void>((resolve) => {
+	popupReadyResolve = resolve;
+});
+
 const isSidePanel = window.location.pathname.includes('side-panel.html');
 const urlParams = new URLSearchParams(window.location.search);
 const isIframe = urlParams.get('context') === 'iframe';
@@ -254,7 +262,10 @@ function setupStorageListeners() {
 function setupMessageListeners() {
 	browser.runtime.onMessage.addListener((request: any, sender: browser.Runtime.MessageSender, sendResponse: (response?: any) => void) => {
 		if (request.action === "triggerQuickClip") {
-			handleClipObsidian().then(() => {
+			// Wait for the popup to finish loading page content before clipping.
+			// Without this, handleClipObsidian can run with empty fields when
+			// the quick-clip message arrives before refreshFields completes.
+			popupReadyPromise.then(() => handleClipObsidian()).then(() => {
 				sendResponse({success: true});
 			}).catch((error) => {
 				console.error('Error in handleClipObsidian:', error);
@@ -413,6 +424,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 	} catch (error) {
 		console.error('Error getting active tab:', error);
 		showError(getMessage('pleaseReload'));
+	} finally {
+		// Always resolve so triggerQuickClip never hangs, even when
+		// initialization fails or the popup closes early.
+		popupReadyResolve?.();
 	}
 });
 
