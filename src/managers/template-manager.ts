@@ -55,6 +55,16 @@ export async function loadTemplates(): Promise<Template[]> {
 			await saveTemplateSettings();
 		}
 
+		// Auto-add built-in templates that the user doesn't already have
+		const hasZhihuTemplate = templates.some(t =>
+			t.name === '知乎回答' ||
+			(t.triggers || []).some((tr: string) => tr.includes('zhihu') && tr.includes('answer'))
+		);
+		if (!hasZhihuTemplate) {
+			templates.push(createZhihuTemplate());
+			await saveTemplateSettings();
+		}
+
 		// After loading templates, update global property types
 		await updateGlobalPropertyTypes(templates);
 
@@ -129,6 +139,28 @@ export function createDefaultTemplate(): Template {
 			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'tags', value: 'clippings' }
 		],
 		triggers: []
+	};
+}
+
+export function createZhihuTemplate(): Template {
+	return {
+		id: Date.now().toString() + Math.random().toString(36).slice(2, 11),
+		name: '知乎回答',
+		behavior: 'create',
+		noteNameFormat: '{{selector:.QuestionHeader-title|first}}',
+		path: 'Clips',
+		noteContentFormat: '{{selectorHtml:.RichContent-inner|replace:" src=":" data-src="|replace:"data-original":"src"|join:"<hr>"|markdown}}',
+		context: '',
+		properties: [
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'up', value: '[[to read]]', type: 'text' },
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'title', value: '{{selector:.QuestionHeader-title|first}}', type: 'text' },
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'source', value: '{{url}}', type: 'text' },
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'author', value: '{{selector:.UserLink-link|slice:1,99|join:", "}}', type: 'text' },
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'published', value: '{{date}}', type: 'date' },
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'created', value: '{{date}}', type: 'date' },
+			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'description', value: '{{description}}', type: 'text' }
+		],
+		triggers: ['/^https.+zhihu.+answer.+$/']
 	};
 }
 
