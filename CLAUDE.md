@@ -24,6 +24,11 @@ npm run build:safari   # outputs to dist_safari/
 # CLI / API (esbuild)
 npm run build:cli    # outputs dist/cli.cjs (CJS for Node)
 npm run build:api    # outputs dist/api.mjs (ESM for programmatic use)
+npm run prepublishOnly  # builds CLI + API before publishing
+
+# Defuddle development (switch between local and npm version)
+npm run defuddle-dev   # symlinks local defuddle for development
+npm run defuddle-prod  # restores npm version
 
 # Tests
 npm test             # vitest run (all src/**/*.test.ts)
@@ -47,12 +52,17 @@ The extension has four runtime contexts that communicate via `browser.runtime.se
 
 - **Background script** (`src/background.ts`): service worker that serves as the central message hub. It listens on `browser.runtime.onMessage` and dispatches based on the `action` property of each message. It manages per-tab state (highlighter active, reader mode), context menus, keyboard commands, and declarativeNetRequest rules for YouTube embeds.
 - **Content script** (`src/content.ts`): injected into every normal web page. Runs in an IIFE with a generation counter (`window.obsidianClipperGeneration`) so stale instances yield to freshly-injected ones after extension updates. Extracts page content via Defuddle, manages the embedded iframe (`toggle-iframe`), and exposes `window.__obsidianHighlighter` for the reader script.
-- **Popup / side-panel** (`src/core/popup.ts`): the main clipper UI. Works both as a browser-action popup and as an iframe embedded in the page (`side-panel.html?context=iframe`).
+- **Popup / side-panel** (`src/core/popup.ts`): the main clipper UI. Works both as a browser-action popup and as an iframe embedded in the page (`side-panel.html?context=iframe`). It detects its mode at runtime via `window.location.pathname` and URL params; behavior differs between modes (e.g., the iframe has close/resize handles).
 - **Reader script** (`src/reader-script.ts`): injected into pages when reader mode activates. Delegates highlighter operations to the content script via `window.__obsidianHighlighter`.
 
 ### Messaging pattern
 
-All cross-context communication uses message objects with an `action` string property. The background script is the hub: content scripts and popup pages send messages to the background, which forwards them to the correct target (a specific tab's content script, or a specific extension page). Messages to content scripts use `browser.tabs.sendMessage(tabId, message)`. Messages to extension pages (popup, reader page) use `browser.runtime.sendMessage(message)`.
+All cross-context communication uses message objects with an `action` string property. The background script is the hub.
+
+- **To content scripts** (normal pages): `browser.tabs.sendMessage(tabId, message)`. The background uses `ensureContentScriptLoadedInBackground(tabId)` before sending to guarantee the script is injected.
+- **To extension pages** (popup, reader page): `browser.runtime.sendMessage(message)`. Messages targeted at a specific tab are wrapped as `{ action: 'extensionPageMessage', targetTabId, message }` and forwarded by the background script.
+- **To popups**: The background tracks open popups via `runtime.onConnect` ports (`port.name === 'popup'`). `sendMessageToPopup(tabId, message)` delivers messages only when a popup is open for that tab.
+- **`routeMessageToTab(tabId, message)`**: background helper that decides whether to send via `tabs.sendMessage` (normal page) or `runtime.sendMessage` with `extensionPageMessage` wrapper (reader.html or other extension pages).
 
 ### Storage
 
@@ -73,6 +83,29 @@ Filters live in `src/utils/filters/*.ts` and are registered in `src/utils/filter
 - `src/content.ts` → `parseForClip(document)` (`src/utils/clip-utils.ts`) → Defuddle parses the DOM.
 - `src/utils/content-extractor.ts` builds the variable dictionary from page metadata, selection, highlights, and extracted content.
 - `src/utils/shared.ts` contains pure helper functions (`buildVariables`, `generateFrontmatter`, `extractContentBySelector`) used by both the browser extension and the CLI. **This file must not import any browser-specific APIs** (no `webextension-polyfill`, `storage-utils`, or browser globals).
+
+### Reader mode architecture
+
+Reader mode spans three contexts with shared highlighter state:
+
+1. **Injected reader script** (`src/reader-script.ts`) on a live page — the content script is already present, so the reader script delegates highlighter operations to it via `window.__obsidianHighlighter`.
+2. **Standalone reader page** (`src/core/reader-view.ts` bundled as `reader-page`, served at `reader.html`) — no content script exists, so it uses direct imports of the highlighter module as a fallback.
+3. **Reader view inside the popup iframe** — shares the same `reader-view.ts` entry point.
+
+The background script tracks reader mode per-tab in `readerModeState[tabId]`. `exitReaderPageIfNeeded(tabId)` navigates back from `reader.html` to the original URL.
+
+### Highlighter bridge
+
+The highlighter module (`src/utils/highlighter.ts`) is loaded in two ways depending on context:
+
+- **On live pages**: the content script loads it and exposes `window.__obsidianHighlighter`.
+- **In reader.html**: `src/utils/reader.ts` uses a lazy `hl()` helper that prefers `window.__obsidianHighlighter` when available (injected reader mode), falling back to direct imports (standalone reader mode).
+
+This prevents two independent highlight arrays from existing on the same tab.
+
+### AI Interpreter
+
+`src/utils/interpreter.ts` implements the LLM integration. It sends compiled prompt variables to configured providers (OpenAI, Anthropic, etc.) and expects a JSON response with `prompts_responses`. Providers and models are configured in settings; the UI for this lives in `src/core/popup.ts`.
 
 ### CLI / API builds
 
@@ -101,10 +134,10 @@ Three manifests are copied depending on the target: `src/manifest.chrome.json`, 
 
 The extension uses webpack 5 with a single config (`webpack.config.js`). Key details:
 
-- **Entry points** (9 bundles): `popup`, `settings`, `highlights`, `reader-page`, `content`, `background`, `style`, `highlighter`, `reader`, `reader-script`.
+- **Entry points** (10 bundles): `popup`, `settings`, `highlights`, `reader-page`, `content`, `background`, `style`, `highlighter`, `reader`, `reader-script`.
 - **TypeScript**: compiled via `ts-loader` targeting ES2020 module output.
 - **SCSS**: compiled via `sass-loader` → `css-loader` → `MiniCssExtractPlugin` into separate CSS files.
-- **HTML files** (`popup.html`, `side-panel.html`, `settings.html`, `highlights.html`, `reader.html`), **icons**, **locales**, and `webextension-polyfill` are copied verbatim via `CopyPlugin`.
+- **HTML files** (`popup.html`, `side-panel.html`, `settings.html`, `highlights.html`, `reader.html`), **icons**, **locales**, `flatten-shadow-dom.js`, and `webextension-polyfill` are copied verbatim via `CopyPlugin`.
 - **Minification**: TerserPlugin with `mangle: false` (identifiers preserved for extension review compliance) and `DEBUG_MODE` dead-code elimination in production.
 - **Globals**: `__BUILD_DATE__` (timestamp), `__BUILD_VERSION__` (from package.json), and `DEBUG_MODE` (false in production) are injected via `webpack.DefinePlugin`.
 - **Production**: `ZipPlugin` creates `builds/obsidian-web-clipper-{version}-{browser}.zip`.
@@ -123,7 +156,7 @@ The extension uses webpack 5 with a single config (`webpack.config.js`). Key det
 - Tests are co-located with source files (`*.test.ts` alongside the module under test).
 - `src/utils/shared.ts` must remain browser-agnostic so it can be bundled for both the extension and the CLI.
 - The `DEBUG_MODE` global is set to `true` in development builds and `false` in production; use it for conditional debug logging.
-- tsconfig has `baseUrl: "src"` with path aliases: imports can use `managers/*`, `utils/*`, and `icons` as shorthand (e.g. `import { ... } from "utils/shared"`).
+- tsconfig has `baseUrl: "src"` with path aliases: imports can use `managers/*`, `utils/*`, and `icons` as shorthand (e.g., `import { ... } from "utils/shared"`).
 
 ## Key third-party libraries
 

@@ -9,6 +9,7 @@ export interface Template {
 	triggers?: string[];
 	vault?: string;
 	context?: string;
+	isDefault?: boolean;
 }
 
 export interface Property {

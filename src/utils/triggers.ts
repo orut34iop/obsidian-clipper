@@ -60,7 +60,7 @@ class Trie {
 			if (!node.children.has(char)) break;
 			node = node.children.get(char)!;
 			if (node.templates.length > 0) {
-				const matchingTemplate = node.templates.find(t => 
+				const matchingTemplate = node.templates.find(t =>
 					memoizedInternalMatchPattern(url.slice(0, url.indexOf(char) + 1), url, schemaOrgData)
 				);
 				if (matchingTemplate) {
@@ -84,6 +84,9 @@ export function initializeTriggers(templates: Template[]): void {
 	schemaTriggers.length = 0;
 
 	templates.forEach((template, index) => {
+		// Default template triggers are not used for auto-matching;
+		// the default template is only a fallback when nothing else matches.
+		if (template.isDefault) return;
 		if (template.triggers) {
 			template.triggers.forEach(trigger => {
 				const priority = templates.length - index; // Higher priority for earlier templates
@@ -98,13 +101,13 @@ export function initializeTriggers(templates: Template[]): void {
 		}
 	});
 
+	memoizedFindMatchingTemplate.clear();
 	isInitialized = true;
 }
 
 const memoizedFindMatchingTemplate = memoizeWithExpiration(
 	async (url: string, getSchemaOrgData: () => Promise<any>): Promise<Template | undefined> => {
 		if (!isInitialized) {
-			console.warn('Triggers not initialized. Call initializeTriggers first.');
 			return undefined;
 		}
 
@@ -126,7 +129,6 @@ const memoizedFindMatchingTemplate = memoizeWithExpiration(
 			const schemaOrgData = await getSchemaOrgData();
 			for (const { template, pattern } of schemaTriggers) {
 				if (matchSchemaPattern(pattern, schemaOrgData)) {
-					console.log('Schema match found:', template);
 					return template;
 				}
 			}
@@ -148,7 +150,7 @@ export function matchPattern(pattern: string, url: string, schemaOrgData: any): 
 
 function matchSchemaPattern(pattern: string, schemaOrgData: any): boolean {
 	const [, schemaType, schemaKey, expectedValue] = pattern.match(/schema:(@\w+)?(?:\.(.+?))?(?:=(.+))?$/) || [];
-	
+
 	if (!schemaType && !schemaKey) return false;
 
 	// Ensure schemaOrgData is always an array

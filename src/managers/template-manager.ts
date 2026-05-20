@@ -27,22 +27,22 @@ export async function loadTemplates(): Promise<Template[]> {
 
 		if (templateIds.length > 0) {
 			const loadedTemplates = await Promise.all(templateIds.map(async (id: string) => {
-				try {
-					const result = await browser.storage.sync.get(`template_${id}`);
-					const compressedChunks = result[`template_${id}`] as string[];
-					if (compressedChunks) {
-						const decompressedData = decompressFromUTF16(compressedChunks.join(''));
-						const template = JSON.parse(decompressedData);
-						if (template && Array.isArray(template.properties)) {
-							return template;
-						}
-					}
-					console.warn(`Template ${id} is invalid or missing`);
-					return null;
-				} catch (error) {
-					console.error(`Error parsing template ${id}:`, error);
-					return null;
+			try {
+			const result = await browser.storage.sync.get(`template_${id}`);
+			const compressedChunks = result[`template_${id}`] as string[];
+			if (compressedChunks) {
+				const decompressedData = decompressFromUTF16(compressedChunks.join(''));
+				const template = JSON.parse(decompressedData);
+				if (template && Array.isArray(template.properties)) {
+					return template;
 				}
+			}
+			console.warn(`Template ${id} is invalid or missing`);
+			return null;
+			} catch (error) {
+			console.error(`Error parsing template ${id}:`, error);
+			return null;
+			}
 			}));
 
 			templates = loadedTemplates.filter((t: Template | null): t is Template => t !== null);
@@ -64,6 +64,9 @@ export async function loadTemplates(): Promise<Template[]> {
 			templates.push(createZhihuTemplate());
 			await saveTemplateSettings();
 		}
+
+		// Ensure exactly one default template exists (migration for existing installs)
+		ensureDefaultTemplate();
 
 		// After loading templates, update global property types
 		await updateGlobalPropertyTypes(templates);
@@ -138,7 +141,8 @@ export function createDefaultTemplate(): Template {
 			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'description', value: '{{description}}' },
 			{ id: Date.now().toString() + Math.random().toString(36).slice(2, 11), name: 'tags', value: 'clippings' }
 		],
-		triggers: []
+		triggers: [],
+		isDefault: true
 	};
 }
 
@@ -162,6 +166,27 @@ export function createZhihuTemplate(): Template {
 		],
 		triggers: ['/^https.+zhihu.+answer.+$/']
 	};
+}
+
+export function getDefaultTemplate(): Template | undefined {
+	return templates.find(t => t.isDefault);
+}
+
+export function ensureDefaultTemplate(): void {
+	const hasDefault = templates.some(t => t.isDefault);
+	if (!hasDefault && templates.length > 0) {
+		// Mark the first template as default if none is set
+		templates[0].isDefault = true;
+	}
+}
+
+export function setDefaultTemplate(templateId: string): void {
+	// Unset all, then set the selected one
+	templates.forEach(t => { t.isDefault = false; });
+	const target = templates.find(t => t.id === templateId);
+	if (target) {
+		target.isDefault = true;
+	}
 }
 
 export function getEditingTemplateIndex(): number {
@@ -209,7 +234,9 @@ export async function deleteTemplate(templateId: string): Promise<boolean> {
 	console.log('Deleting template:', templateId);
 	if (index !== -1) {
 		// Remove from the templates array
+		const wasDefault = templates[index].isDefault;
 		templates.splice(index, 1);
+		if (wasDefault) ensureDefaultTemplate();
 		setEditingTemplateIndex(-1);
 
 		try {
@@ -254,13 +281,13 @@ async function updateGlobalPropertyTypes(templates: Template[]): Promise<void> {
 	templates.forEach(template => {
 		template.properties.forEach(property => {
 			if (!existingTypes.has(property.name)) {
-				const defaultType = defaultTypes[property.name] || { type: 'text', defaultValue: '' };
-				newTypes.push({ 
-					name: property.name, 
-					type: defaultType.type,
-					defaultValue: defaultType.defaultValue
-				});
-				existingTypes.add(property.name);
+			const defaultType = defaultTypes[property.name] || { type: 'text', defaultValue: '' };
+			newTypes.push({ 
+			name: property.name, 
+			type: defaultType.type,
+			defaultValue: defaultType.defaultValue
+			});
+			existingTypes.add(property.name);
 			}
 		});
 	});

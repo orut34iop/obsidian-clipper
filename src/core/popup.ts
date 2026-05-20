@@ -9,7 +9,7 @@ import { initializeIcons, getPropertyTypeIcon } from '../icons/icons';
 import { findMatchingTemplate, initializeTriggers } from '../utils/triggers';
 import { getLocalStorage, setLocalStorage, loadSettings, generalSettings, Settings } from '../utils/storage-utils';
 import { escapeHtml, unescapeValue } from '../utils/string-utils';
-import { loadTemplates, createDefaultTemplate } from '../managers/template-manager';
+import { loadTemplates, createDefaultTemplate, getDefaultTemplate } from '../managers/template-manager';
 import browser from '../utils/browser-polyfill';
 import { addBrowserClassToHtml, detectBrowser } from '../utils/browser-detection';
 import { createElementWithClass } from '../utils/dom-utils';
@@ -202,10 +202,11 @@ async function initializeExtension(tabId: number) {
 			return false;
 		}
 
-		// Initialize triggers to speed up template matching
+		// Initialize triggers for non-default templates.
+		// The default template is the fallback when no trigger matches.
 		initializeTriggers(templates);
 
-		currentTemplate = templates[0];
+		currentTemplate = getDefaultTemplate() || templates[0];
 		debugLog('Templates', 'Current template set to:', currentTemplate);
 
 		// Load last selected vault
@@ -711,8 +712,11 @@ async function refreshFields(tabId: number, { checkTemplateTriggers = true, rebu
 
 			const matchedTemplate = await findMatchingTemplate(tab.url, getSchemaOrgData);
 			if (matchedTemplate) {
-				console.log('Matched template:', matchedTemplate);
 				currentTemplate = matchedTemplate;
+				updateTemplateDropdown();
+			} else {
+				const defaultTemplate = getDefaultTemplate() || templates[0];
+				currentTemplate = defaultTemplate;
 				updateTemplateDropdown();
 			}
 		}
