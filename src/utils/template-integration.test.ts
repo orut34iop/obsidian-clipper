@@ -1,3 +1,8 @@
+// @vitest-environment jsdom
+// createMarkdownContent() runs turndown, which needs a DOM (document/DOMParser) to
+// parse the HTML it converts — same as the extension and CLI provide at runtime.
+// Without it, {{content}} fixtures (minimal, edge-cases) get turndown's error
+// fallback instead of real markdown. jsdom supplies those globals for this file.
 import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, basename, extname } from 'path';
@@ -6,7 +11,8 @@ import DefuddleClass from 'defuddle';
 import { createMarkdownContent } from 'defuddle/full';
 import { buildVariables, generateFrontmatter, formatPropertyValue } from './shared';
 import { compileTemplate } from './template-compiler';
-import { createAsyncResolver, createSelectorProcessor } from '../api';
+import { clip, createAsyncResolver, createSelectorProcessor } from '../api';
+import { createZhihuTemplate } from '../managers/template-manager';
 
 // ---------------------------------------------------------------------------
 // Freeze time so {{date}} is deterministic in expected output
@@ -119,6 +125,48 @@ function saveExpected(name: string, content: string): void {
 // Tests
 // ---------------------------------------------------------------------------
 
+test('public clip API extracts title and article content from the complete document', async () => {
+	const html = '<!DOCTYPE html><html><head><title>Clip API regression</title></head><body><article><h1>Clip API regression</h1><p>This article must survive extraction through the public API and CLI.</p></article></body></html>';
+	const result = await clip({
+		html,
+		url: 'https://example.com/article',
+		documentParser: { parseFromString: value => parseHTML(value).document },
+		template: {
+			id: 'api-regression', name: 'API regression', behavior: 'create',
+			path: '', context: '', properties: [],
+			noteNameFormat: '{{title}}', noteContentFormat: '{{content}}',
+		},
+	});
+	expect(result.noteName).toBe('Clip API regression');
+	expect(result.content).toContain('This article must survive extraction through the public API and CLI.');
+});
+
+test('built-in Zhihu template preserves selectors and lazy images with Knap', async () => {
+	const { document } = parseHTML(`<!DOCTYPE html><html><body>
+		<h1 class="QuestionHeader-title">如何保存知乎回答？</h1>
+		<a class="UserLink-link">提问者</a>
+		<a class="UserLink-link">回答者甲</a>
+		<a class="UserLink-link">回答者乙</a>
+		<div class="RichContent-inner"><p>第一段回答</p><img src="placeholder.gif" data-original="https://example.com/original.png"></div>
+		<div class="RichContent-inner"><p>第二段回答</p></div>
+	</body></html>`);
+	const template = createZhihuTemplate();
+	const compile = (text: string) => compileTemplate(
+		0, text, {}, 'https://www.zhihu.com/question/123/answer/456',
+		createAsyncResolver(document), createSelectorProcessor(document),
+	);
+
+	expect(await compile(template.noteNameFormat)).toBe('如何保存知乎回答？');
+	expect(await compile(template.properties.find(property => property.name === 'author')!.value))
+		.toBe('回答者甲, 回答者乙');
+	const content = await compile(template.noteContentFormat);
+	expect(content).toContain('第一段回答');
+	expect(content).toContain('第二段回答');
+	expect(content).toContain('https://example.com/original.png');
+	expect(content).not.toContain('placeholder.gif');
+	expect(content).not.toContain('<p>');
+});
+
 describe('Template fixtures', () => {
 	const fixtures = getFixtures();
 
@@ -151,5 +199,74 @@ describe('Template fixtures', () => {
 		}
 
 		expect(result.trim()).toEqual(expected.trim());
+	});
+});
+
+describe('Template filter compatibility', () => {
+	test('supports nth offset expressions', async () => {
+		const output = await compileTemplate(
+			0,
+			'{{items|nth:n+3}}',
+			{ items: '["a","b","c","d","e"]' },
+			'https://example.com',
+		);
+
+		expect(JSON.parse(output)).toEqual(['c', 'd', 'e']);
+	});
+});
+
+describe('Template diagnostics', () => {
+	test('surfaces non-fatal Knap filter warnings', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const output = await compileTemplate(
+				0,
+				'{{ value | replace:"/[/":"x" }}',
+				{ value: 'a[b' },
+				'https://example.com',
+			);
+
+			expect(output).toBe('a[b');
+			expect(warnSpy).toHaveBeenCalledWith(
+				'Template compilation warnings:',
+				expect.stringContaining('filter replace'),
+			);
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+});
+
+describe('Schema array compatibility', () => {
+	const variables = {
+		'{{schema:@Movie:director}}': JSON.stringify([{ name: 'Nolan' }, { name: 'Villeneuve' }]),
+		'{{schema:@Movie:genre}}': JSON.stringify(['Drama', 'Thriller']),
+	};
+
+	test('iterates over complete array items', async () => {
+		const output = await compileTemplate(
+			0,
+			'{% for director in schema:@Movie:director[*] %}{{director.name}}{% endfor %}',
+			variables,
+			'https://example.com',
+		);
+		expect(output).toBe('Nolan\nVilleneuve');
+	});
+
+	test('returns complete arrays and indexed values without a property path', async () => {
+		await expect(compileTemplate(
+			0,
+			'{{schema:@Movie:director[*]}}',
+			variables,
+			'https://example.com',
+		)).resolves.toBe('[{"name":"Nolan"},{"name":"Villeneuve"}]');
+
+		await expect(compileTemplate(
+			0,
+			'{{schema:@Movie:genre[0]}}',
+			variables,
+			'https://example.com',
+		)).resolves.toBe('Drama');
 	});
 });

@@ -1,5 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
+// Date fixtures include Los Angeles offsets; keep them stable on every host.
+process.env.TZ = 'America/Los_Angeles';
+
 export default defineConfig({
 	define: {
 		DEBUG_MODE: false,
