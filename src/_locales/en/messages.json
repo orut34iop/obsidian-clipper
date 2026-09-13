@@ -1,4 +1,31 @@
 {
+	"quickClipIcon": {
+		"message": "Quick clip icon"
+	},
+	"quickClipHiddenSites": {
+		"message": "Hide on these websites"
+	},
+	"quickClipHiddenSitesDescription": {
+		"message": "Hide the floating icon on all pages of each exact domain. Subdomains are separate. You can also right-click the icon to hide it on the current website. Restore it here at any time."
+	},
+	"quickClipHideSite": {
+		"message": "Hide on website"
+	},
+	"quickClipRestoreOnSite": {
+		"message": "Restore icon"
+	},
+	"quickClipHideOnSite": {
+		"message": "Hide icon on this website"
+	},
+	"quickClipInvalidSite": {
+		"message": "Enter a valid domain or an HTTP/HTTPS URL."
+	},
+	"quickClipSaveFailed": {
+		"message": "Could not save website settings. Please try again."
+	},
+	"quickClipButtonTooltip": {
+		"message": "Quick Clip (drag to move; right-click for website settings)"
+	},
 	"activity": {
 		"message": "Activity"
 	},

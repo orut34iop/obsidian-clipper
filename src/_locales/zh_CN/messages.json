@@ -1,4 +1,31 @@
 {
+	"quickClipIcon": {
+		"message": "快捷剪藏图标"
+	},
+	"quickClipHiddenSites": {
+		"message": "在以下网站隐藏"
+	},
+	"quickClipHiddenSitesDescription": {
+		"message": "隐藏所列域名下所有页面的悬浮图标，子域名单独设置。也可以右键点击图标，选择在当前网站隐藏。随时可在此恢复显示。"
+	},
+	"quickClipHideSite": {
+		"message": "隐藏网站图标"
+	},
+	"quickClipRestoreOnSite": {
+		"message": "恢复显示"
+	},
+	"quickClipHideOnSite": {
+		"message": "在此网站隐藏图标"
+	},
+	"quickClipInvalidSite": {
+		"message": "请输入有效域名或 HTTP/HTTPS 网址。"
+	},
+	"quickClipSaveFailed": {
+		"message": "无法保存网站设置，请重试。"
+	},
+	"quickClipButtonTooltip": {
+		"message": "快捷剪藏（拖动可移动，右键可设置网站显示）"
+	},
 	"activity": {
 		"message": "活动"
 	},

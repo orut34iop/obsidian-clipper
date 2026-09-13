@@ -140,6 +140,19 @@
 								<ul id="vault-list" class="setting-item-list"></ul>
 								</div>
 							</div>
+							<div class="setting-group" id="quick-clip-subsection">
+								<div class="setting-item setting-item-heading"><h3 data-i18n="quickClipIcon">Quick clip icon</h3></div>
+								<div class="setting-items">
+									<label for="quick-clip-site-input" data-i18n="quickClipHiddenSites">Hide on these websites</label>
+									<div id="quick-clip-sites-description" class="setting-item-description" data-i18n="quickClipHiddenSitesDescription">Hide the floating icon on all pages of each exact domain. Subdomains are separate. You can also right-click the icon to hide it on the current website. Restore it here at any time.</div>
+									<div class="setting-item mod-horizontal">
+										<input type="text" id="quick-clip-site-input" placeholder="example.com" aria-describedby="quick-clip-sites-description" autocomplete="off" spellcheck="false" />
+										<button type="button" id="quick-clip-site-add" data-i18n="quickClipHideSite">Hide on website</button>
+									</div>
+									<ul id="quick-clip-hidden-sites" class="setting-item-list"></ul>
+									<div id="quick-clip-sites-status" class="setting-item-description" role="status"></div>
+								</div>
+							</div>
 							<div class="setting-group" id="hotkeys-subsection">
 								<div class="setting-item setting-item-heading"><h3 data-i18n="hotkeys">Hotkeys</h3></div>
 								<div class="setting-items">

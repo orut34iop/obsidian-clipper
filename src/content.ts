@@ -13,11 +13,13 @@ import { debugLog } from './utils/debug';
 import { updateSidebarWidth, addResizeHandle, cleanupResizeHandlers } from './utils/iframe-resize';
 import { parseForClip, preprocessParagraphs } from './utils/clip-utils';
 import { getMessage } from './utils/i18n';
+import { initializeQuickClipButton } from './utils/quick-clip-button';
 import { searchNotes } from './utils/selection-search';
 
 declare global {
 	interface Window {
 		obsidianClipperGeneration?: number;
+		obsidianQuickClipCleanup?: () => void;
 	}
 }
 
@@ -29,6 +31,7 @@ declare global {
 	// will silently yield to the freshly-injected instance.
 	window.obsidianClipperGeneration = (window.obsidianClipperGeneration ?? 0) + 1;
 	const myGeneration = window.obsidianClipperGeneration;
+	window.obsidianQuickClipCleanup?.();
 
 	debugLog('Clipper', 'Initializing content script, generation', myGeneration);
 	console.log('[Clipper] Content script initializing, generation:', myGeneration);
@@ -477,139 +480,13 @@ declare global {
 
 	// --- Quick Clip Floating Button ---
 
-	const QUICKCLIP_STORAGE_KEY = 'quickClipButtonOffset';
-
-	async function loadQuickClipOffset(): Promise<number> {
-		try {
-			const result = await browser.storage.local.get(QUICKCLIP_STORAGE_KEY);
-			return typeof result[QUICKCLIP_STORAGE_KEY] === 'number' ? result[QUICKCLIP_STORAGE_KEY] : 0;
-		} catch {
-			return 0;
-		}
-	}
-
-	async function saveQuickClipOffset(offset: number): Promise<void> {
-		try {
-			await browser.storage.local.set({ [QUICKCLIP_STORAGE_KEY]: offset });
-		} catch {
-			// ignore
-		}
-	}
-
-	function createQuickClipButton(): HTMLButtonElement {
-		const btn = document.createElement('button');
-		btn.id = 'obsidian-clipper-quickclip-btn';
-		btn.type = 'button';
-		btn.setAttribute('aria-label', 'Quick Clip (drag to move)');
-		btn.title = 'Quick Clip (drag to move)';
-		btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>`;
-
-		// Inline styles to avoid depending on CSS injection
-		Object.assign(btn.style, {
-			position: 'fixed',
-			right: '0',
-			top: '50%',
-			transform: 'translateY(-50%)',
-			zIndex: '999999999',
-			width: '36px',
-			height: '48px',
-			padding: '0',
-			margin: '0',
-			border: 'none',
-			borderRadius: '8px 0 0 8px',
-			backgroundColor: '#7c3aed',
-			color: '#fff',
-			cursor: 'pointer',
-			display: 'flex',
-			alignItems: 'center',
-			justifyContent: 'center',
-			boxShadow: '-2px 0 8px rgba(0,0,0,0.15)',
-			transition: 'width 0.2s ease, background-color 0.2s ease',
-			userSelect: 'none',
-			webkitUserSelect: 'none',
-		});
-
-		let isDragging = false;
-		let dragStartY = 0;
-		let dragStartOffset = 0;
-		let currentOffset = 0;
-		let hasDragged = false;
-
-		function updatePosition(offset: number) {
-			currentOffset = offset;
-			btn.style.transform = `translateY(calc(-50% + ${offset}px))`;
-		}
-
-		// Load saved position
-		loadQuickClipOffset().then(offset => {
-			currentOffset = offset;
-			updatePosition(offset);
-		});
-
-		function onPointerMove(e: PointerEvent) {
-			if (!isDragging) return;
-			const deltaY = e.clientY - dragStartY;
-			if (Math.abs(deltaY) > 3) {
-				hasDragged = true;
-			}
-			updatePosition(dragStartOffset + deltaY);
-		}
-
-		function onPointerUp() {
-			if (!isDragging) return;
-			isDragging = false;
-			btn.style.cursor = 'pointer';
-			btn.releasePointerCapture((btn as any)._quickClipPointerId ?? 0);
-			document.removeEventListener('pointermove', onPointerMove);
-			document.removeEventListener('pointerup', onPointerUp);
-			if (hasDragged) {
-				saveQuickClipOffset(currentOffset);
-			}
-			setTimeout(() => { hasDragged = false; }, 50);
-		}
-
-		btn.addEventListener('pointerdown', (e) => {
-			// Only left click / primary pointer
-			if (e.button !== 0) return;
-			isDragging = true;
-			hasDragged = false;
-			dragStartY = e.clientY;
-			dragStartOffset = currentOffset;
-			btn.style.cursor = 'grabbing';
-			(btn as any)._quickClipPointerId = e.pointerId;
-			try { btn.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-			document.addEventListener('pointermove', onPointerMove);
-			document.addEventListener('pointerup', onPointerUp);
-		});
-
-		btn.addEventListener('mouseenter', () => {
-			if (isDragging) return;
-			btn.style.width = '44px';
-			btn.style.backgroundColor = '#6d28d9';
-		});
-		btn.addEventListener('mouseleave', () => {
-			if (isDragging) return;
-			btn.style.width = '36px';
-			btn.style.backgroundColor = '#7c3aed';
-		});
-
-		btn.addEventListener('click', (e) => {
-			if (hasDragged) {
-				e.preventDefault();
-				e.stopPropagation();
-				return;
-			}
-			browser.runtime.sendMessage({ action: 'quickClipFromIcon' })
-				.catch(error => console.error('[Clipper] Failed to send quick clip:', error));
-		});
-
-		document.body.appendChild(btn);
-		return btn;
-	}
-
-	// Only show on normal web pages, not on extension pages or blank pages
-	if (document.URL && (document.URL.startsWith('http://') || document.URL.startsWith('https://'))) {
-		createQuickClipButton();
+	const cleanupQuickClip = await initializeQuickClipButton(
+		() => window.obsidianClipperGeneration === myGeneration
+	);
+	if (window.obsidianClipperGeneration === myGeneration) {
+		window.obsidianQuickClipCleanup = cleanupQuickClip;
+	} else {
+		cleanupQuickClip();
 	}
 
 	// Deactivate highlighter mode on unload

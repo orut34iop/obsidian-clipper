@@ -13,6 +13,7 @@ import { updateTemplateList, showTemplateEditor } from '../managers/template-ui'
 import { exportAllSettings, importAllSettings } from '../utils/import-export';
 import { Settings, Template } from '../types/types';
 import { exportHighlights, importHighlights } from './highlights-manager';
+import { initializeQuickClipSettings } from './quick-clip-settings';
 import { clearNoteIndex } from '../utils/note-index';
 import { getMessage, setupLanguageAndDirection } from '../utils/i18n';
 import { debounce } from '../utils/debounce';
@@ -237,6 +238,7 @@ export function initializeGeneralSettings(): void {
 		initializeExportHighlightsButton();
 		initializeSaveBehaviorDropdown();
 		initializeSelectionSearchSettings();
+		await initializeQuickClipSettings();
 		await initializeUsageChart();
 
 		// Initialize feedback modal close button

@@ -301,6 +301,20 @@ label {
 	}
 }
 
+#quick-clip-hidden-sites {
+	li {
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	span {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	button {
+		flex-shrink: 0;
+	}
+}
+
 .setting-item-list {
 	display: flex;
 	flex-direction: column;

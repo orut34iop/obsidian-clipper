@@ -1,4 +1,31 @@
 {
+	"quickClipIcon": {
+		"message": "快速剪藏圖示"
+	},
+	"quickClipHiddenSites": {
+		"message": "在以下網站隱藏"
+	},
+	"quickClipHiddenSitesDescription": {
+		"message": "隱藏所列網域下所有頁面的浮動圖示，子網域分別設定。也可以右鍵點擊圖示，選擇在目前網站隱藏。隨時可在此恢復顯示。"
+	},
+	"quickClipHideSite": {
+		"message": "隱藏網站圖示"
+	},
+	"quickClipRestoreOnSite": {
+		"message": "恢復顯示"
+	},
+	"quickClipHideOnSite": {
+		"message": "在此網站隱藏圖示"
+	},
+	"quickClipInvalidSite": {
+		"message": "請輸入有效網域或 HTTP/HTTPS 網址。"
+	},
+	"quickClipSaveFailed": {
+		"message": "無法儲存網站設定，請重試。"
+	},
+	"quickClipButtonTooltip": {
+		"message": "快速剪藏（拖曳可移動，右鍵可設定網站顯示）"
+	},
 	"activity": {
 		"message": "活動"
 	},
